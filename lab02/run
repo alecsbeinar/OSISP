@@ -1,0 +1,2 @@
+#!/bin/sh
+CHILD_PATH=./chld ./prnt "env.txt"
