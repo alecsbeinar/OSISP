@@ -18,15 +18,17 @@ void initialization();
 void info();
 
 const char *menu = "MENU:\n"
-                          "1 - print options\n"
-                          "2 - create producer\n"
-                          "3 - delete producer\n"
-                          "4 - create consumer\n"
-                          "5 - delete consumer\n"
-                          "6 - info\n"
-                          "+ - increase queue\n"
-                          "- - decrease queue\n"
-                          "7 - quit";
+                   "1 - print options\n"
+                   "2 - create producer\n"
+                   "3 - delete producer\n"
+                   "4 - create consumer\n"
+                   "5 - delete consumer\n"
+                   "6 - info\n"
+                   "i - increase queue size\n"
+                   "d - decrease queue size\n"
+                   "+ - add message to queue\n"
+                   "- - extract message to queue\n"
+                   "7 - quit";
 
 msg_struct* queue; // ring buffer of messages
 
@@ -41,6 +43,9 @@ pthread_t producers[CHILD_MAX];
 int producers_amount;
 pthread_t consumers[CHILD_MAX];
 int consumers_amount;
+
+
+long CURRENT_SIZE = 10;
 
 msg_t msg;
 int counter;
@@ -74,17 +79,45 @@ int main() {
                 info();
                 break;
 
-            case '+':
-                sem_wait(&extracted);
-                produce(&msg);
+            case 'i':
+                if(CURRENT_SIZE < MSG_MAX){
+                    ++CURRENT_SIZE;
+                    sem_post(&extracted);
+                } else {
+                    printf("Maximum queue size reached!\n");
+                }
+                break;
+
+            case 'd':
                 pthread_mutex_lock(&mutex);
-                counter = add_msg(&msg);
+                if(CURRENT_SIZE <= 0){
+                    printf("Сurrent size can't be decreased\n");
+                    pthread_mutex_unlock(&mutex);
+                    break;
+                }
+                if(CURRENT_SIZE == queue->message_amount){
+                    printf("Queue full, free to decrease size\n");
+                    pthread_mutex_unlock(&mutex);
+                    break;
+                }
+                --CURRENT_SIZE;
                 pthread_mutex_unlock(&mutex);
-                sem_post(&added);
+                break;
 
-                printf("%d) User produce msg: hash=%X\n",
-                        counter, msg.hash);
+            case '+':
+                if (queue->message_amount == CURRENT_SIZE) {
+                    fputs("Queue buffer overflow\n", stderr);
+                } else {
+                    sem_wait(&extracted);
+                    produce(&msg);
+                    pthread_mutex_lock(&mutex);
+                    counter = add_msg(&msg);
+                    pthread_mutex_unlock(&mutex);
+                    sem_post(&added);
 
+                    printf("%d) User produce msg: hash=%X\n",
+                           counter, msg.hash);
+                }
                 break;
 
             case '-':
@@ -202,5 +235,6 @@ void atexit_handler() {
 void info(){
     pthread_mutex_lock(&mutex);
     printf("Count producer: %d; count consumer: %d; count messages in queue: %d\n", producers_amount, consumers_amount, queue->message_amount);
+    printf("Queue size: %ld; queue max_size: %d\n", CURRENT_SIZE, MSG_MAX);
     pthread_mutex_unlock(&mutex);
 }

@@ -52,8 +52,8 @@ void merge_sorted_memsize(char *);
 
 
 int main(int argc, char *argv[]) {
-    if (argc != 7) {
-        fprintf(stderr, "Usage: %s memsize blocks threads k N filename\n", argv[0]);
+    if (argc != 5) {
+        fprintf(stderr, "Usage: %s memsize blocks threads filename\n", argv[0]);
         return -1;
     }
 
@@ -61,9 +61,7 @@ int main(int argc, char *argv[]) {
     memsize = (int) strtol(argv[1], NULL, 10);
     blocks = (int) strtol(argv[2], NULL, 10);
     threads = (int) strtol(argv[3], NULL, 10);
-    int k = (int) strtol(argv[4], NULL, 10);
-    int N = (int) strtol(argv[5], NULL, 10);
-    filename = argv[6];
+    filename = argv[4];
 
     // Проверка валидности параметров
     int pagesize = getpagesize();
@@ -79,10 +77,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "blocks should be greater then count of threads\n");
         return -1;
     }
-    if (threads < k || threads > N) {
-        fprintf(stderr, "threads should be between %d and %d\n", k, N);
-        return -1;
-    }
+
     block_size = memsize / blocks;
     index_size = sizeof(struct index_s);
     count_sorted_memsize = 0;
@@ -134,7 +129,7 @@ int main(int argc, char *argv[]) {
     free(thread_nums);
     free(busy_blocks);
 
-    // Закрытие файла и снятие отображения
+    // Закрытие файла
     close(file_fd);
     if (remove(BUFFER_FILENAME) == -1) {
         perror("Remove buffer_file");

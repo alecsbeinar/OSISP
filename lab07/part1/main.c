@@ -18,20 +18,20 @@ void initialization();
 void info();
 
 const char *menu = "MENU:\n"
-                          "1 - print options\n"
-                          "2 - create producer\n"
-                          "3 - delete producer\n"
-                          "4 - create consumer\n"
-                          "5 - delete consumer\n"
-                          "6 - info\n"
-                          "+ - increase queue\n"
-                          "- - decrease queue\n"
-                          "7 - quit";
+                   "1 - print options\n"
+                   "2 - create producer\n"
+                   "3 - delete producer\n"
+                   "4 - create consumer\n"
+                   "5 - delete consumer\n"
+                   "6 - info\n"
+                   "+ - increase queue\n"
+                   "- - decrease queue\n"
+                   "7 - quit";
 
 msg_struct* queue; // ring buffer of messages
 
-pthread_mutex_t mutex;
-
+pthread_mutex_t mutexp = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutexc = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_cond_t condp = PTHREAD_COND_INITIALIZER;
 pthread_cond_t condc = PTHREAD_COND_INITIALIZER;
@@ -76,17 +76,20 @@ int main() {
                 break;
 
             case '+':
-                produce(&msg);
-                pthread_mutex_lock(&mutex);
-                while (queue->message_amount == MSG_MAX)
-                    pthread_cond_wait(&condp, &mutex);
-                counter = add_msg(&msg);
-                pthread_cond_signal(&condc);
-                pthread_mutex_unlock(&mutex);
+                if (queue->message_amount == MSG_MAX - 1) {
+                    fputs("Queue buffer overflow\n", stderr);
+                } else {
+                    produce(&msg);
+                    pthread_mutex_lock(&mutexp);
+                    while (queue->message_amount == MSG_MAX - 1)
+                        pthread_cond_wait(&condp, &mutexp);
+                    counter = add_msg(&msg);
+                    pthread_cond_signal(&condc);
+                    pthread_mutex_unlock(&mutexp);
 
-                printf("%d) User produce msg: hash=%X\n",
-                        counter, msg.hash);
-
+                    printf("%d) User produce msg: hash=%X\n",
+                           counter, msg.hash);
+                }
                 break;
 
             case '-':
@@ -94,14 +97,14 @@ int main() {
                     printf("There are no messages in the queue\n");
                     break;
                 }
-                pthread_mutex_lock(&mutex);
+                pthread_mutex_lock(&mutexc);
                 while (queue->message_amount == 0)
-                    pthread_cond_wait(&condc, &mutex);
+                    pthread_cond_wait(&condc, &mutexc);
 
                 counter = get_msg(&msg);
 
                 pthread_cond_signal(&condp);
-                pthread_mutex_unlock(&mutex);
+                pthread_mutex_unlock(&mutexc);
 
                 consume(&msg);
 
@@ -162,7 +165,12 @@ void initialization() {
 
 
     // Setup mutex
-    int res = pthread_mutex_init(&mutex, NULL);
+    int res = pthread_mutex_init(&mutexp, NULL);
+    if(res){
+        fputs("Failed mutex init\n", stderr);
+        exit(res);
+    }
+    res = pthread_mutex_init(&mutexc, NULL);
     if(res){
         fputs("Failed mutex init\n", stderr);
         exit(res);
@@ -178,19 +186,16 @@ void initialization() {
 }
 
 void atexit_handler() {
-    for(int i = 0; i < producers_amount; i++) remove_producer();
-    for(int i = 0; i < consumers_amount; i++) remove_consumer();
+    while(producers_amount > 0) remove_producer();
+    while(consumers_amount > 0) remove_consumer();
 
-    // remove named semaphore
-    pthread_cond_destroy(&condp);
-    pthread_cond_destroy(&condc);
+    pthread_cond_broadcast(&condc);
+    pthread_cond_broadcast(&condp);
+    if(pthread_cond_destroy(&condp) != 0){ fputs("Failed cond destroy\n", stderr);  }
+    if(pthread_cond_destroy(&condc) != 0){ fputs("Failed cond destroy\n", stderr); }
 
-    pthread_mutex_unlock(&mutex);
-    int res = pthread_mutex_destroy(&mutex);
-    if (res) {
-        fputs("Failed mutex destroy\n", stderr);
-        exit(res);
-    }
+    pthread_mutex_destroy(&mutexp);
+    pthread_mutex_destroy(&mutexc);
 
     // remove shared memory segment
     if (shm_unlink(SHARED_MEMORY_OBJ)) {
@@ -202,7 +207,5 @@ void atexit_handler() {
 
 
 void info(){
-    pthread_mutex_lock(&mutex);
     printf("Count producer: %d; count consumer: %d; count messages in queue: %d\n", producers_amount, consumers_amount, queue->message_amount);
-    pthread_mutex_unlock(&mutex);
 }

@@ -7,13 +7,13 @@
 
 
 extern msg_struct *queue;
-extern pthread_mutex_t mutex;
+extern pthread_mutex_t mutexc;
 extern pthread_cond_t condp;
 extern pthread_cond_t condc;
 extern pthread_t consumers[];
 extern int consumers_amount;
 
-void create_consumer(){
+void create_consumer() {
     if (consumers_amount == CHILD_MAX - 1) {
         fputs("Max value of consumers\n", stderr);
         return;
@@ -28,27 +28,35 @@ void create_consumer(){
     ++consumers_amount;
 }
 
-void* consume_handler(void* arg){
-    msg_t msg;
-    int counter;
-    while(1){
-        pthread_mutex_lock(&mutex);
-        while (queue->message_amount == 0)
-            pthread_cond_wait(&condc, &mutex);
+void cleanup_handler_consumer(void *plock) {
+    pthread_mutex_unlock(plock);
+}
 
-        counter = get_msg(&msg);
+void *consume_handler(void *arg) {
+    pthread_cleanup_push(cleanup_handler_consumer, &mutexc) ;
 
-        pthread_cond_signal(&condp);
-        pthread_mutex_unlock(&mutex);
+            msg_t msg;
+            int counter;
+            while (1) {
+                pthread_mutex_lock(&mutexc);
+                while (queue->message_amount == 0)
+                    pthread_cond_wait(&condc, &mutexc);
 
-        consume(&msg);
+                counter = get_msg(&msg);
 
-        pthread_t ptid = pthread_self();
-        printf("%d-c) %ld consume msg: hash=%X\n",
-               counter, ptid, msg.hash);
+                pthread_cond_signal(&condp);
+                pthread_mutex_unlock(&mutexc);
 
-        sleep(3);
-    }
+                consume(&msg);
+
+                pthread_t ptid = pthread_self();
+                printf("%d-c) %ld consume msg: hash=%X\n",
+                       counter, ptid, msg.hash);
+
+                sleep(3);
+            }
+
+    pthread_cleanup_pop(0);
 }
 
 void consume(msg_t *msg) {
@@ -59,7 +67,7 @@ void consume(msg_t *msg) {
     }
 }
 
-void remove_consumer(){
+void remove_consumer() {
     if (consumers_amount == 0) {
         fputs("Amount consumers = 0\n", stderr);
         return;

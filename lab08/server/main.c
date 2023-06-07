@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,9 +14,14 @@
 #define BUFFER_SIZE 1024
 
 #define ERROR_INFO_FILE "Error: opening info file"
+#define INVALID_FORMAT "Invalid command format"
+#define UNKNOWN_COMMAND "Unknown command"
 #define INFO_FILE "server_info.txt"
 
 pthread_mutex_t mutex; // To control thread_counter.
+
+
+// TODO: sorting LIST
 
 typedef struct client_thread_args client_thread_args;
 struct client_thread_args {
@@ -32,7 +39,7 @@ char *get_file_fullname(char *, char *);
 
 void proceed_cd_command(int, char **, char *, char *);
 
-void proceed_list_command(int, char *, char *);
+void proceed_list_command(int, char *);
 
 int compareFilenames(const char *, const char *);
 
@@ -54,7 +61,7 @@ int main(int argc, char **argv) {
         perror("chdir");
         return -1;
     }
-    char *root_dir = (char *) calloc(BUFFER_SIZE, sizeof(char));
+    char* root_dir = (char*) calloc(BUFFER_SIZE, sizeof(char));
     if (!getcwd(root_dir, BUFFER_SIZE)) {
         perror("getcwd");
         return -1;
@@ -149,8 +156,10 @@ void *client_handler(void *arg) {
         if (n <= 0) {
             break;
         }
+        printf("Client send: %s\n", buffer);
         if (strncmp(buffer, "ECHO", 4) == 0) {
-            send(data.sock, buffer + 5, n - 5, 0);
+            if(n > 5) send(data.sock, buffer + 5, n - 5, 0);
+            else send(data.sock, INVALID_FORMAT, strlen(INVALID_FORMAT), 0);
         } else if (strcmp(buffer, "QUIT") == 0) {
             // обработка QUIT запроса
             send(data.sock, "BYE", 3, 0);
@@ -160,13 +169,13 @@ void *client_handler(void *arg) {
             send_file(data.sock, info_file);
         } else if (strncmp(buffer, "CD ", 3) == 0) {
             // обработка CD запроса
-            proceed_cd_command(data.sock, &current_dir, data.root_dir, buffer);
+            if(n > 3) proceed_cd_command(data.sock, &current_dir, data.root_dir, buffer);
+            else send(data.sock, INVALID_FORMAT, strlen(INVALID_FORMAT), 0);
         } else if (strcmp(buffer, "LIST") == 0) {
-            proceed_list_command(data.sock, current_dir, data.root_dir);
+            proceed_list_command(data.sock, current_dir);
         } else {
             // неизвестный запрос
-            char *message = "Unknown command";
-            send(data.sock, message, strlen(message), 0);
+            send(data.sock, UNKNOWN_COMMAND, strlen(UNKNOWN_COMMAND), 0);
         }
     }
 
@@ -238,7 +247,7 @@ void proceed_cd_command(int client_socket, char **current_dir, char *root_dir, c
             strcat(buffer, *current_dir + strlen(root_dir) + 1);
         }
     }
-    if (chdir(root_dir) == -1) {
+    if(chdir(root_dir) == -1){
         perror("chdir");
         return;
     }
@@ -246,22 +255,15 @@ void proceed_cd_command(int client_socket, char **current_dir, char *root_dir, c
     send(client_socket, buffer, strlen(buffer), 0);
 }
 
-void proceed_list_command(int client_socket, char *current_dir, char *root_dir) {
-    char *file_name = (char *) calloc(BUFFER_SIZE, sizeof(char));
+void proceed_list_command(int client_socket, char *current_dir) {
+    char* file_name = (char*) calloc(BUFFER_SIZE, sizeof(char));
     int file_count = 0;
-    char *fileNameBuffer = (char *) calloc(BUFFER_SIZE * 2, sizeof(char));
+    char* fileNameBuffer = (char*)calloc(BUFFER_SIZE * 2, sizeof(char));
 
     // открыть текущий каталог
     DIR *dir = opendir(current_dir);
     if (dir == NULL) {
         perror("opendir");
-        return;
-    }
-
-    pthread_mutex_lock(&mutex);
-
-    if (chdir(current_dir) == -1) {
-        perror("chdir");
         return;
     }
 
@@ -272,7 +274,7 @@ void proceed_list_command(int client_socket, char *current_dir, char *root_dir) 
             // пропустить ссылки на текущий и родительский каталоги
             continue;
         }
-        memset(file_name, 0, BUFFER_SIZE);
+        ++file_count;
         if (ent->d_type == DT_DIR) {
             // это каталог
             sprintf(file_name, "%s/\n", ent->d_name);
@@ -303,7 +305,6 @@ void proceed_list_command(int client_socket, char *current_dir, char *root_dir) 
                 strcat(file_name, link_target);
                 strcat(file_name, "\n");
             } else {
-                perror("readlink");
                 strcat(file_name, ent->d_name);
                 strcat(file_name, "\n");
             }
@@ -311,8 +312,9 @@ void proceed_list_command(int client_socket, char *current_dir, char *root_dir) 
             // неизвестный тип файла
             continue;
         }
-        ++file_count;
+
         strcat(fileNameBuffer, file_name);
+
     }
     fileNameBuffer[strlen(fileNameBuffer)] = '\0';
 
@@ -333,7 +335,7 @@ void proceed_list_command(int client_socket, char *current_dir, char *root_dir) 
     }
     sortFilenameList(fileNames, file_count);
 
-    char *message = (char *) calloc(BUFFER_SIZE * 2, sizeof(char));
+    char* message = (char*)calloc(BUFFER_SIZE * 2, sizeof(char));
 
     for (int i = 0; i < file_count; ++i) {
         strcat(message, fileNames[i]);
@@ -343,14 +345,6 @@ void proceed_list_command(int client_socket, char *current_dir, char *root_dir) 
         message[strlen(message) - 1] = '\0';
     else
         strcat(message, " ");
-
-
-    if (chdir(root_dir) == -1) {
-        perror("chdir");
-        return;
-    }
-    pthread_mutex_unlock(&mutex);
-
 
     send(client_socket, message, strlen(message), 0);
 

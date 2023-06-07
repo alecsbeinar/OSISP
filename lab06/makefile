@@ -1,27 +1,27 @@
 CC = gcc
 CFLAGS = -O2 -std=c11 -pedantic -Wall -Wextra -Werror -Wno-unused-parameter -D_DEFAULT_SOURCE
+TARGET1 = generate_unsorted_index
+OBJFILES1 = generate_unsorted_index.c
+TARGET2 = sort_index
+OBJFILES2 = sort_index.c
+TARGET3 = print_index
+OBJFILES3 = print_index.c
 
-GENERATE = ./generate_unsorted_index.c
-SORT = ./sort_index.c
-PRINT = ./print_index.c
-
-
-generate_unsorted_index: $(GENERATE) 
-		$(CC) $(CFLAGS) -o $@ $^
-
-sort_index: $(SORT)
-		$(CC) $(CFLAGS) -o $@ $^
-		
-print_index: $(PRINT)
-		$(CC) $(CFLAGS) -o $@ $^
-
+all: $(TARGET1) $(TARGET2) $(TARGET3)
 	
+$(TARGET1): $(OBJFILES1)
+			$(CC) $(CFLAGS) -o $(TARGET1) $(OBJFILES1)
+
+$(TARGET2): $(OBJFILES2)
+			$(CC) $(CFLAGS) -o $(TARGET2) $(OBJFILES2)
+
+$(TARGET3): $(OBJFILES3)
+			$(CC) $(CFLAGS) -o $(TARGET3) $(OBJFILES3)
+
 .PHONY: run
 run:
-	make generate_unsorted_index
-	make sort_index
-	make print_index
+	make all
 .PHONY: clean
 
 clean:
-	rm -rf generate_unsorted_index sort_index print_index file.bin sorted_data.bin
+	rm -rf $(TARGET1) $(TARGET2) $(TARGET3) file.bin sorted_data.bin

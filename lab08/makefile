@@ -1,21 +1,24 @@
 CC = gcc
 CFLAGS = -O2 -std=c11 -pedantic -Wall -Wextra -Werror -Wno-unused-parameter -D_DEFAULT_SOURCE
 
-CLIENT = client/main.c
+TARGET1 = srvr
+OBJFILES1 = server/main.c
+TARGET2 = clnt
+OBJFILES2 = client/main.c
 
-SERVER = server/main.c
 
-clnt: $(CLIENT) 
-		$(CC) $(CFLAGS) -o $@ $^
+all: $(TARGET1) $(TARGET2) 
+	
+$(TARGET1): $(OBJFILES1)
+			$(CC) $(CFLAGS) -o $(TARGET1) $(OBJFILES1)
 
-srvr: $(SERVER)
-		$(CC) $(CFLAGS) -o $@ $^
+$(TARGET2): $(OBJFILES2)
+			$(CC) $(CFLAGS) -o $(TARGET2) $(OBJFILES2)
 	
 .PHONY: run
 run:
-	make clnt
-	make srvr
+	make all
 .PHONY: clean
 
 clean:
-	rm -rf clnt srvr
+	rm -rf $(TARGET1) $(TARGET2)

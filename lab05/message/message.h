@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MSG_MAX 4096
+#define MSG_MAX 15
 #define CHILD_MAX 1024
 #define SHARED_MEMORY_OBJ "/queue"
 
@@ -26,6 +26,7 @@ typedef struct {
 } msg_struct;
 
 extern msg_struct* queue;
+extern long CURRENT_SIZE;
 
 void init_queue();
 int hash(msg_t*);

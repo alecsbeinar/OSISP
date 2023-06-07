@@ -6,7 +6,7 @@
 
 
 extern msg_struct *queue;
-extern pthread_mutex_t mutex;
+extern pthread_mutex_t mutexp;
 extern pthread_cond_t condp;
 extern pthread_cond_t condc;
 extern pthread_t producers[];
@@ -25,27 +25,39 @@ void create_producer() {
     }
 
     ++producers_amount;
-
 }
 
-_Noreturn void* produce_handler(void* arg){
-    msg_t msg;
-    int counter;
-    while (1) {
-        produce(&msg);
-        pthread_mutex_lock(&mutex);
-        while (queue->message_amount == MSG_MAX)
-            pthread_cond_wait(&condp, &mutex);
-        counter = add_msg(&msg);
-        pthread_cond_signal(&condc);
-        pthread_mutex_unlock(&mutex);
+void cleanup_handler(void *plock) {
+    pthread_mutex_unlock(plock);
+}
 
-        pthread_t ptid = pthread_self();
-        printf("%d-p) %ld produce msg: hash=%X\n",
-               counter, ptid, msg.hash);
+_Noreturn void *produce_handler(void *arg) {
+    pthread_cleanup_push(cleanup_handler, &mutexp) ;
 
-        sleep(3);
-    }
+            msg_t msg;
+            int counter;
+            while (1) {
+                produce(&msg);
+                pthread_mutex_lock(&mutexp);
+                while (queue->message_amount == MSG_MAX - 1) {
+                    pthread_cond_wait(&condp, &mutexp);
+                }
+
+                counter = add_msg(&msg);
+
+                if (counter != -1) {
+                    pthread_cond_signal(&condc);
+                    pthread_mutex_unlock(&mutexp);
+                    pthread_t ptid = pthread_self();
+                    printf("%d-p) %ld produce msg: hash=%X\n",
+                           counter, ptid, msg.hash);
+                } else
+                    pthread_mutex_unlock(&mutexp);
+
+                sleep(3);
+            }
+
+    pthread_cleanup_pop(0);
 }
 
 void produce(msg_t *msg) {

@@ -4,8 +4,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 
-#define MSG_MAX 4096
+#define MSG_MAX 20
 #define CHILD_MAX 1024
 #define SHARED_MEMORY_OBJ "/queue"
 

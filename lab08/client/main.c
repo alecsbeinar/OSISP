@@ -47,7 +47,7 @@ int handle_request(int socket, char *request) {
 
 int main(int argc, char* argv[]) {
     if (argc != 3) {
-        fprintf(stderr, "Usage: ./clnt <server-ip> <server-port>\n");
+        fprintf(stderr, "Usage: <server-ip> <server-port>\n");
         exit(1);
     }
     char* server_ip = argv[1];
@@ -75,7 +75,7 @@ int main(int argc, char* argv[]) {
         if (buffer[0] == '@') {
             if(!send_requests_from_file(client_socket, buffer + 1))
                 continue;
-        } else {
+        } else if(strlen(buffer) > 0){
             if(handle_request(client_socket, buffer) == 1)
                 return 0;
         }

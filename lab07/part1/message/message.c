@@ -22,12 +22,16 @@ int hash(msg_t* msg){
 int add_msg(msg_t* msg){
     if (queue->message_amount == MSG_MAX - 1) {
         fputs("Queue buffer overflow\n", stderr);
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     queue->buffer[queue->head] = *msg;
     ++queue->head;
     ++queue->message_amount;
+
+    if(queue->head == MSG_MAX - 1){
+        queue->head = 0;
+    }
 
     return ++queue->produce_count;
 }
@@ -41,6 +45,10 @@ int get_msg(msg_t* msg){
     *msg = queue->buffer[queue->tail];
     ++queue->tail;
     --queue->message_amount;
+
+    if(queue->tail == MSG_MAX - 1){
+        queue->tail = 0;
+    }
 
     return ++queue->consume_count;
 }

@@ -42,12 +42,13 @@ _Noreturn void* produce_handler(void* arg){
         counter = add_msg(&msg);
         pthread_mutex_unlock(&mutex);
 
-        sem_post(&added);
+        if(counter != -1){
+            sem_post(&added);
 
-        pthread_t ptid = pthread_self();
-        printf("%d-p) %ld produce msg: hash=%X\n",
-               counter, ptid, msg.hash);
-
+            pthread_t ptid = pthread_self();
+            printf("%d-p) %ld produce msg: hash=%X\n",
+                   counter, ptid, msg.hash);
+        }
         sleep(5);
     }
 }
