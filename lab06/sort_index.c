@@ -10,6 +10,7 @@
 
 #define BUFFER_FILENAME "buffer_data.bin"
 #define SORTED_FILENAME "sorted_data.bin"
+#define N 8192
 
 // Структура для индексной записи
 struct index_s {
@@ -75,6 +76,13 @@ int main(int argc, char *argv[]) {
     }
     if (blocks <= threads) {
         fprintf(stderr, "blocks should be greater then count of threads\n");
+        return -1;
+    }
+
+    int core = sysconf(_SC_NPROCESSORS_ONLN);
+    if (threads < core || threads > N) 
+    {
+        fprintf(stderr, "Amount of threads sholud be beetween %d и %d\n", core, N);
         return -1;
     }
 
@@ -226,7 +234,10 @@ void *thread_func(void *arg) {
             }
 
             long records_count = merge_size / index_size;
+
+            pthread_mutex_lock(&mutex);
             func_merge_blocks(block_id * records_count, records_count, file_map);
+            pthread_mutex_unlock(&mutex);
         }
 
         // Синхронизация на барьере после каждой фазы слияния
@@ -310,6 +321,8 @@ void func_merge_blocks(long block_number, long records_count, struct index_s *bl
         j++;
         l++;
     }
+
+    usleep(1);
 
     // Копирование слитых данных обратно в исходный блок
     for (int idx = 0; idx < 2 * records_count; idx++) {
